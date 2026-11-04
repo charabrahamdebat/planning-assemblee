@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { generateMeetings, monthStart, nextMonth, formatFrenchDate, formatTime, ROLE_BY_KIND, ROLE_LABELS, type RoleKey, type MeetingKind } from "@/lib/planning";
 
-type Member={id:string;full_name:string;email:string|null;whatsapp_phone:string|null;active:boolean};
+type Member={id:string;full_name:string;email:string|null;whatsapp_phone:string|null;active:boolean;role_keys:RoleKey[]};
 type Plan={id:string;month_start:string;status:"draft"|"published"|"archived"};
 type Meeting={id:string;plan_id:string;meeting_date:string;meeting_kind:MeetingKind;starts_at:string;ends_at:string;ends_next_day:boolean;cancelled:boolean};
 type Assignment={id:string;meeting_id:string;role_key:RoleKey;member_id:string|null;status:string;responded_at:string|null};
@@ -26,7 +26,7 @@ function MonthMeeting({meeting,assignments,members,busy,assign,saveTime}:{
       return <label className="role-row" key={role}><span>{ROLE_LABELS[role]}</span><div>
         <select value={a?.member_id??""} disabled={busy||!a} onChange={e=>{if(a)void assign(a,e.target.value);}}>
           <option value="">Non attribué</option>
-          {members.filter(m=>m.active||m.id===a?.member_id).map(m=><option key={m.id} value={m.id}>{m.full_name}{m.active?"":" (inactif)"}</option>)}
+          {members.filter(m=>(m.active&&m.role_keys.includes(role))||m.id===a?.member_id).map(m=><option key={m.id} value={m.id}>{m.full_name}{m.active&&m.role_keys.includes(role)?"":" (hors groupe / inactif)"}</option>)}
         </select>
         <small>{a?.status==="confirmed"?"Confirmé":a?.status==="pending"?"À confirmer":a?.status==="change_requested"?"Modification demandée":"À attribuer"}</small>
       </div></label>;
@@ -48,13 +48,15 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
   const [error,setError]=useState(""),[notice,setNotice]=useState("");
   const [name,setName]=useState(""),[email,setEmail]=useState(""),[phone,setPhone]=useState("");
+  const [selectedRoles,setSelectedRoles]=useState<RoleKey[]>([]);
+  const [editingMember,setEditingMember]=useState<string|null>(null);
   const monthKey=monthStart(year,month);
 
   const load=useCallback(async()=>{
     setLoading(true);setError("");
     try{
       const [mr,pr]=await Promise.all([
-        supabase.from("members").select("id,full_name,email,whatsapp_phone,active").order("full_name"),
+        supabase.from("members").select("id,full_name,email,whatsapp_phone,active,role_keys").order("full_name"),
         supabase.from("monthly_plans").select("id,month_start,status").eq("month_start",monthKey).maybeSingle()
       ]);
       if(mr.error)throw mr.error;if(pr.error)throw pr.error;
@@ -106,11 +108,18 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
   async function addMember(e:FormEvent<HTMLFormElement>){
     e.preventDefault();setBusy(true);setError("");setNotice("");
     try{
-      const result=await supabase.from("members").insert({full_name:name.trim(),email:email.trim()||null,whatsapp_phone:phone.trim()||null});
-      if(result.error)throw result.error;setName("");setEmail("");setPhone("");
+      const result=await supabase.from("members").insert({full_name:name.trim(),email:email.trim()||null,whatsapp_phone:phone.trim()||null,role_keys:selectedRoles});
+      if(result.error)throw result.error;setName("");setEmail("");setPhone("");setSelectedRoles([]);
       await load();setNotice("Intervenant ajouté.");
     }catch(e){setError(e instanceof Error?e.message:"Erreur d'enregistrement.");}
     finally{setBusy(false);}
+  }
+  async function updateMemberRoles(member:Member,role:RoleKey){
+    setBusy(true);setError("");setNotice("");
+    const role_keys=member.role_keys.includes(role)?member.role_keys.filter(r=>r!==role):[...member.role_keys,role];
+    const r=await supabase.from("members").update({role_keys}).eq("id",member.id);
+    if(r.error)setError(r.error.message);else setNotice("Liste des responsabilités mise à jour.");
+    await load();setBusy(false);
   }
   async function toggleMember(m:Member){
     setBusy(true);const r=await supabase.from("members").update({active:!m.active}).eq("id",m.id);
@@ -159,12 +168,34 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
           <label>Nom complet<input value={name} onChange={e=>setName(e.target.value)} minLength={2} required/></label>
           <label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label>
           <label>Téléphone WhatsApp<input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+33…"/></label>
-          <button className="primary" type="submit" disabled={busy||name.trim().length<2||(!email.trim()&&!phone.trim())}>Ajouter</button>
+          <fieldset className="role-groups"><legend>Groupes de responsabilités</legend>
+            <p className="muted small">Une personne peut appartenir à plusieurs groupes.</p>
+            {(Object.keys(ROLE_LABELS) as RoleKey[]).map(role=><label key={role} className="group-check">
+              <input type="checkbox" checked={selectedRoles.includes(role)}
+                onChange={e=>setSelectedRoles(prev=>e.target.checked?[...prev,role]:prev.filter(x=>x!==role))}/>
+              {ROLE_LABELS[role]}
+            </label>)}
+          </fieldset>
+          <button className="primary" type="submit" disabled={busy||name.trim().length<2||selectedRoles.length===0}>Ajouter</button>
         </form></div>
         <div className="card"><h2>Intervenants ({members.length})</h2>
           {!members.length?<p className="muted">Aucun intervenant enregistré.</p>:members.map(m=><div className="member" key={m.id}>
-          <div><b>{m.full_name}</b><small>{m.email||m.whatsapp_phone||"Sans contact"}</small></div>
-          <button className="secondary" disabled={busy} onClick={()=>void toggleMember(m)}>{m.active?"Désactiver":"Réactiver"}</button></div>)}
+          <div><b>{m.full_name}</b><small>{m.email||m.whatsapp_phone||"Contact à compléter"}</small>
+            <small>{m.role_keys.length ? m.role_keys.map(r=>ROLE_LABELS[r]).join(" · ") : "Aucun groupe"}</small>
+            {editingMember===m.id&&<div className="role-edit">
+              {(Object.keys(ROLE_LABELS) as RoleKey[]).map(role=><label key={role} className="group-check">
+                <input type="checkbox" checked={m.role_keys.includes(role)} disabled={busy}
+                  onChange={()=>void updateMemberRoles(m,role)}/>
+                {ROLE_LABELS[role]}
+              </label>)}
+            </div>}
+          </div>
+          <div className="member-actions">
+            <button className="secondary" disabled={busy} onClick={()=>setEditingMember(editingMember===m.id?null:m.id)}>
+              {editingMember===m.id?"Fermer":"Groupes"}
+            </button>
+            <button className="secondary" disabled={busy} onClick={()=>void toggleMember(m)}>{m.active?"Retirer":"Réactiver"}</button>
+          </div></div>)}
         </div></section>}
       {tab==="validations"&&<section className="card empty"><h2>Validations</h2><p>Les confirmations par lien, les demandes de modification et leur approbation seront activées à la prochaine étape.</p></section>}
       <footer>Première version · Accès réservé à l'administrateur · Projet Supabase indépendant</footer>
