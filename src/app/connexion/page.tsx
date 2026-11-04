@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 function Formulaire(){
@@ -20,6 +21,6 @@ function Formulaire(){
       <label>Mot de passe<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>
       {error&&<p className="error" role="alert">{error}</p>}
       <button disabled={busy} className="primary" type="submit">{busy?"Connexion…":"Se connecter"}</button>
-    </form><p className="muted small">Les intervenants n'ont pas besoin de compte.</p></section></main>;
+    </form><p><Link href="/mot-de-passe-oublie" className="text-link">Mot de passe oublié ?</Link></p>{search.get("mot_de_passe")==="modifie"&&<p className="alert success" role="status">Mot de passe enregistré. Connecte-toi avec le nouveau mot de passe.</p>}<p className="muted small">Les intervenants n'ont pas besoin de compte.</p></section></main>;
 }
 export default function ConnexionPage(){return <Suspense fallback={<p>Chargement…</p>}><Formulaire/></Suspense>;}
