@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { generateMeetings, monthStart, nextMonth, formatFrenchDate, formatTime, ROLE_BY_KIND, ROLE_LABELS, type RoleKey, type MeetingKind } from "@/lib/planning";
 
-type Member={id:string;full_name:string;email:string|null;whatsapp_phone:string|null;active:boolean;role_keys:RoleKey[]};
+type Member={id:string;full_name:string;email:string|null;whatsapp_phone:string|null;country:string|null;active:boolean;role_keys:RoleKey[]};
 type Plan={id:string;month_start:string;status:"draft"|"published"|"archived"};
 type Meeting={id:string;plan_id:string;meeting_date:string;meeting_kind:MeetingKind;starts_at:string;ends_at:string;ends_next_day:boolean;cancelled:boolean};
 type Assignment={id:string;meeting_id:string;role_key:RoleKey;member_id:string|null;status:string;responded_at:string|null};
@@ -26,7 +26,7 @@ function MonthMeeting({meeting,assignments,members,busy,assign,saveTime}:{
       return <label className="role-row" key={role}><span>{ROLE_LABELS[role]}</span><div>
         <select value={a?.member_id??""} disabled={busy||!a} onChange={e=>{if(a)void assign(a,e.target.value);}}>
           <option value="">Non attribué</option>
-          {members.filter(m=>(m.active&&m.role_keys.includes(role))||m.id===a?.member_id).map(m=><option key={m.id} value={m.id}>{m.full_name}{m.active&&m.role_keys.includes(role)?"":" (hors groupe / inactif)"}</option>)}
+          {members.filter(m=>(m.active&&m.role_keys.includes(role))||m.id===a?.member_id).map(m=><option key={m.id} value={m.id}>{m.full_name}{m.country?` — ${m.country}`:""}{m.active&&m.role_keys.includes(role)?"":" (hors groupe / inactif)"}</option>)}
         </select>
         <small>{a?.status==="confirmed"?"Confirmé":a?.status==="pending"?"À confirmer":a?.status==="change_requested"?"Modification demandée":"À attribuer"}</small>
       </div></label>;
@@ -47,16 +47,17 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
   const [meetings,setMeetings]=useState<Meeting[]>([]),[assignments,setAssignments]=useState<Assignment[]>([]);
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
   const [error,setError]=useState(""),[notice,setNotice]=useState("");
-  const [name,setName]=useState(""),[email,setEmail]=useState(""),[phone,setPhone]=useState("");
+  const [name,setName]=useState(""),[email,setEmail]=useState(""),[phone,setPhone]=useState(""),[country,setCountry]=useState("");
   const [selectedRoles,setSelectedRoles]=useState<RoleKey[]>([]);
   const [editingMember,setEditingMember]=useState<string|null>(null);
+  const [countryDraft,setCountryDraft]=useState("");
   const monthKey=monthStart(year,month);
 
   const load=useCallback(async()=>{
     setLoading(true);setError("");
     try{
       const [mr,pr]=await Promise.all([
-        supabase.from("members").select("id,full_name,email,whatsapp_phone,active,role_keys").order("full_name"),
+        supabase.from("members").select("id,full_name,email,whatsapp_phone,country,active,role_keys").order("full_name"),
         supabase.from("monthly_plans").select("id,month_start,status").eq("month_start",monthKey).maybeSingle()
       ]);
       if(mr.error)throw mr.error;if(pr.error)throw pr.error;
@@ -108,8 +109,8 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
   async function addMember(e:FormEvent<HTMLFormElement>){
     e.preventDefault();setBusy(true);setError("");setNotice("");
     try{
-      const result=await supabase.from("members").insert({full_name:name.trim(),email:email.trim()||null,whatsapp_phone:phone.trim()||null,role_keys:selectedRoles});
-      if(result.error)throw result.error;setName("");setEmail("");setPhone("");setSelectedRoles([]);
+      const result=await supabase.from("members").insert({full_name:name.trim(),email:email.trim()||null,whatsapp_phone:phone.trim()||null,country:country.trim(),role_keys:selectedRoles});
+      if(result.error)throw result.error;setName("");setEmail("");setPhone("");setCountry("");setSelectedRoles([]);
       await load();setNotice("Intervenant ajouté.");
     }catch(e){setError(e instanceof Error?e.message:"Erreur d'enregistrement.");}
     finally{setBusy(false);}
@@ -120,6 +121,22 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
     const r=await supabase.from("members").update({role_keys}).eq("id",member.id);
     if(r.error)setError(r.error.message);else setNotice("Liste des responsabilités mise à jour.");
     await load();setBusy(false);
+  }
+  function toggleMemberEditor(m:Member){
+    if(editingMember===m.id){setEditingMember(null);return;}
+    setEditingMember(m.id);
+    setCountryDraft(m.country??"");
+  }
+  async function saveMemberCountry(m:Member){
+    const value=countryDraft.trim();
+    if(value.length<2||value.length>100){setError("Le pays doit comporter de 2 à 100 caractères.");return;}
+    setBusy(true);setError("");setNotice("");
+    try{
+      const result=await supabase.from("members").update({country:value}).eq("id",m.id);
+      if(result.error)throw result.error;
+      await load();setNotice("Pays de l'intervenant enregistré.");
+    }catch(e){setError(e instanceof Error?e.message:"Impossible de mettre à jour le pays.");}
+    finally{setBusy(false);}
   }
   async function toggleMember(m:Member){
     setBusy(true);const r=await supabase.from("members").update({active:!m.active}).eq("id",m.id);
@@ -145,14 +162,14 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
   const title=new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(Date.UTC(year,month,1)));
 
   return <div className="layout">
-    <aside className="sidebar"><div className="sidebar-brand"><span className="brand-mark">PA</span><div><b>Planning Assemblée</b><small>Administration</small></div></div>
+    <aside className="sidebar"><div className="sidebar-brand"><span className="brand-mark">PA</span><div><b>Planning Assemblée</b><small className="assembly-name">FOI VICTORIEUSE</small><small>Administration</small></div></div>
       <nav className="nav">
         <button className={tab==="planning"?"selected":""} onClick={()=>setTab("planning")}>▦ Planning mensuel</button>
         <button className={tab==="members"?"selected":""} onClick={()=>setTab("members")}>♙ Intervenants</button>
         <button className={tab==="validations"?"selected":""} onClick={()=>setTab("validations")}>✓ Validations</button>
       </nav><div className="bottom"><small>{userEmail}</small><button className="secondary" disabled={busy} onClick={()=>void logout()}>Déconnexion</button></div>
     </aside>
-    <main className="main"><header><p className="eyebrow">Gestion des cultes en ligne</p><h1>{tab==="planning"?"Planning mensuel":tab==="members"?"Intervenants":"Validations"}</h1>
+    <main className="main"><header><p className="eyebrow">Planning Assemblée — FOI VICTORIEUSE</p><h1>{tab==="planning"?"Planning mensuel":tab==="members"?"Intervenants":"Validations"}</h1>
       <p className="muted">Vendredi 22h–01h (samedi) · Dimanche 16h–18h</p></header>
       {error&&<p className="alert error" role="alert">{error}</p>}{notice&&<p className="alert success" role="status">{notice}</p>}
       {tab==="planning"&&<><section className="month-head">
@@ -168,6 +185,11 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
           <label>Nom complet<input value={name} onChange={e=>setName(e.target.value)} minLength={2} required/></label>
           <label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label>
           <label>Téléphone WhatsApp<input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+33…"/></label>
+          <label>Pays de l'intervenant<input type="text" list="assemblee-pays" autoComplete="country-name" maxLength={100}
+            placeholder="Ex. : France, Bénin, Côte d'Ivoire…" value={country} onChange={e=>setCountry(e.target.value)} required/></label>
+          <datalist id="assemblee-pays">
+            {["France","Côte d'Ivoire","Bénin","Cameroun","République démocratique du Congo","République du Congo","Togo","Sénégal","Burkina Faso","Gabon","Mali","Guinée","Niger","Nigeria","Ghana","Belgique","Suisse","Canada","États-Unis","Haïti","Maroc","Algérie","Madagascar","Allemagne","Royaume-Uni"].map(p=><option key={p} value={p}/>)}
+          </datalist>
           <fieldset className="role-groups"><legend>Groupes de responsabilités</legend>
             <p className="muted small">Une personne peut appartenir à plusieurs groupes.</p>
             {(Object.keys(ROLE_LABELS) as RoleKey[]).map(role=><label key={role} className="group-check">
@@ -176,13 +198,20 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
               {ROLE_LABELS[role]}
             </label>)}
           </fieldset>
-          <button className="primary" type="submit" disabled={busy||name.trim().length<2||selectedRoles.length===0}>Ajouter</button>
+          <button className="primary" type="submit" disabled={busy||name.trim().length<2||country.trim().length<2||selectedRoles.length===0}>Ajouter</button>
         </form></div>
         <div className="card"><h2>Intervenants ({members.length})</h2>
           {!members.length?<p className="muted">Aucun intervenant enregistré.</p>:members.map(m=><div className="member" key={m.id}>
-          <div><b>{m.full_name}</b><small>{m.email||m.whatsapp_phone||"Contact à compléter"}</small>
+          <div><b>{m.full_name}</b><small><strong>Pays :</strong> {m.country||"À renseigner"}</small><small>{m.email||m.whatsapp_phone||"Contact à compléter"}</small>
             <small>{m.role_keys.length ? m.role_keys.map(r=>ROLE_LABELS[r]).join(" · ") : "Aucun groupe"}</small>
             {editingMember===m.id&&<div className="role-edit">
+              <label className="country-edit-label">Pays
+                <input type="text" list="assemblee-pays" autoComplete="country-name" maxLength={100}
+                  value={countryDraft} onChange={e=>setCountryDraft(e.target.value)} placeholder="Pays de l'intervenant" disabled={busy}/>
+              </label>
+              <button className="secondary" type="button" disabled={busy||countryDraft.trim().length<2||countryDraft.trim()===m.country}
+                onClick={()=>void saveMemberCountry(m)}>Enregistrer le pays</button>
+              <b className="small">Groupes de responsabilités</b>
               {(Object.keys(ROLE_LABELS) as RoleKey[]).map(role=><label key={role} className="group-check">
                 <input type="checkbox" checked={m.role_keys.includes(role)} disabled={busy}
                   onChange={()=>void updateMemberRoles(m,role)}/>
@@ -191,8 +220,8 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
             </div>}
           </div>
           <div className="member-actions">
-            <button className="secondary" disabled={busy} onClick={()=>setEditingMember(editingMember===m.id?null:m.id)}>
-              {editingMember===m.id?"Fermer":"Groupes"}
+            <button className="secondary" disabled={busy} onClick={()=>toggleMemberEditor(m)}>
+              {editingMember===m.id?"Fermer":"Modifier"}
             </button>
             <button className="secondary" disabled={busy} onClick={()=>void toggleMember(m)}>{m.active?"Retirer":"Réactiver"}</button>
           </div></div>)}

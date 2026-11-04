@@ -35,3 +35,8 @@ Commandes de test : npm test, npm run typecheck, npm run build.
 Importer ce dépôt dans Vercel et configurer les variables d'environnement NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY avec leurs valeurs correspondantes. Ne pas publier sans avoir vérifié la connexion et les opérations RLS.
 
 Cette livraison a passé les tests de logique calendaire, mais la compilation complète Next.js et le parcours navigateur restent à valider.
+
+
+## Assemblée et pays des intervenants
+
+L'application porte le nom « Planning Assemblée — FOI VICTORIEUSE ». Chaque intervenant possède un pays (champ obligatoire lors de l'ajout ; anciens intervenants à compléter depuis « Modifier »). Le pays est visible dans l'annuaire et les listes d'affectation. Ce changement ne modifie pas les réunions déjà générées.
