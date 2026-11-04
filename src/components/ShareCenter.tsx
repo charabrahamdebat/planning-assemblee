@@ -51,7 +51,7 @@ export default function ShareCenter({
       ...lines,
       "",
       "Merci de confirmer ta disponibilité.",
-      "Si tu souhaites une modification, fais-nous le savoir."
+      "Si tu souhaites une modification, fais-moi le savoir."
     ].join("\n");
   }
 
