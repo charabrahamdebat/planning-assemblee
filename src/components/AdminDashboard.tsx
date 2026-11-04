@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
+import ShareCenter from "@/components/ShareCenter";
 import { generateMeetings, monthStart, nextMonth, formatFrenchDate, formatTime, ROLE_BY_KIND, ROLE_LABELS, type RoleKey, type MeetingKind } from "@/lib/planning";
 
 type Member={id:string;full_name:string;email:string|null;whatsapp_phone:string|null;country:string|null;active:boolean;role_keys:RoleKey[]};
@@ -152,6 +153,20 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
     setBusy(true);const r=await supabase.from("meetings").update({starts_at:start,ends_at:end,ends_next_day:end<start}).eq("id",m.id);
     if(r.error)setError(r.error.message);await load();setBusy(false);
   }
+  async function confirmAfterReply(a:Assignment){
+    if(!a.member_id || a.status!=="pending")return;
+    setBusy(true);setError("");setNotice("");
+    try {
+      const result=await supabase.from("assignments")
+        .update({status:"confirmed",responded_at:new Date().toISOString()})
+        .eq("id",a.id).eq("status","pending");
+      if(result.error)throw result.error;
+      await load();
+      setNotice("Confirmation enregistrée après la réponse de l'intervenant.");
+    } catch(e) {
+      setError(e instanceof Error ? e.message : "La confirmation n'a pas pu être enregistrée.");
+    } finally {setBusy(false);}
+  }
   async function logout(){setBusy(true);await supabase.auth.signOut();router.replace("/connexion");router.refresh();}
   function changeMonth(delta:number){
     const result=nextMonth(year,month,delta);setYear(result.year);setMonth(result.monthIndex);setNotice("");
@@ -166,7 +181,7 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
       <nav className="nav">
         <button className={tab==="planning"?"selected":""} onClick={()=>setTab("planning")}>▦ Planning mensuel</button>
         <button className={tab==="members"?"selected":""} onClick={()=>setTab("members")}>♙ Intervenants</button>
-        <button className={tab==="validations"?"selected":""} onClick={()=>setTab("validations")}>✓ Validations</button>
+        <button className={tab==="validations"?"selected":""} onClick={()=>setTab("validations")}>✓ Partage et validations</button>
       </nav><div className="bottom"><small>{userEmail}</small><button className="secondary" disabled={busy} onClick={()=>void logout()}>Déconnexion</button></div>
     </aside>
     <main className="main"><header><p className="eyebrow">Planning Assemblée — FOI VICTORIEUSE</p><h1>{tab==="planning"?"Planning mensuel":tab==="members"?"Intervenants":"Validations"}</h1>
@@ -226,7 +241,10 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
             <button className="secondary" disabled={busy} onClick={()=>void toggleMember(m)}>{m.active?"Retirer":"Réactiver"}</button>
           </div></div>)}
         </div></section>}
-      {tab==="validations"&&<section className="card empty"><h2>Validations</h2><p>Les confirmations par lien, les demandes de modification et leur approbation seront activées à la prochaine étape.</p></section>}
+      {tab==="validations"&&<ShareCenter
+        members={members} meetings={meetings} assignments={assignments}
+        monthLabel={title} busy={busy} onManualConfirmation={confirmAfterReply}
+      />}
       <footer>Première version · Accès réservé à l'administrateur · Projet Supabase indépendant</footer>
     </main>
   </div>;
