@@ -3,3 +3,12 @@
 .text-link{color:#145b99;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .checkline{display:flex!important;align-items:center;gap:10px;font-weight:400!important}
 .checkline input{width:auto!important;accent-color:#1264a7}
+
+.role-groups{border:1px solid #d5e2ec;border-radius:12px;margin:0;padding:12px;display:grid;gap:9px}
+.role-groups legend{font-weight:700;font-size:.86rem;padding:0 5px}
+.group-check{display:flex!important;align-items:center;gap:9px;font-size:.82rem;font-weight:400!important}
+.group-check input{width:auto!important;accent-color:#1264a7}
+.member>div:first-child{min-width:0}
+.member-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.member-actions button{font-size:.76rem}
+.role-edit{margin-top:10px;display:grid;gap:9px;background:#f5f8fc;border-radius:10px;padding:12px}
