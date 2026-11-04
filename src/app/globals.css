@@ -17,3 +17,12 @@
 .country-edit-label{display:grid;gap:6px;font-size:.83rem;font-weight:700}
 .country-edit-label input{width:100%;border:1px solid #c9d6e3;border-radius:8px;background:white;padding:10px;color:#203f5b}
 .role-edit>.secondary{justify-self:start}
+
+.share-center{display:grid;gap:17px}
+.share-person{display:flex;justify-content:space-between;align-items:center;gap:18px;border-top:1px solid #e3eaf2;padding:16px 0}
+.share-person-info{min-width:0;flex:1}
+.share-person-info small{display:block;color:#698094;line-height:1.5;margin-top:5px}
+.share-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.share-link{display:inline-flex;padding:11px 15px;border-radius:9px;background:#eef5fa;color:#1b5989;border:1px solid #c9d7e5;text-decoration:none;font-weight:700}
+.share-link:hover{background:#e2edf7}
+@media(max-width:720px){.share-person{align-items:flex-start;flex-direction:column}.share-actions{justify-content:flex-start}}
