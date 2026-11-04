@@ -13,7 +13,7 @@ type Meeting = {
 };
 type Assignment = {
   id: string; meeting_id: string; role_key: RoleKey;
-  member_id: string|null; status: string;
+  member_id: string|null; status: string; responded_at: string|null;
 };
 type Props = {
   members: Member[]; meetings: Meeting[]; assignments: Assignment[];
