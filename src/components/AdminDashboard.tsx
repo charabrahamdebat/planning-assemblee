@@ -9,6 +9,7 @@ type Member={id:string;full_name:string;email:string|null;whatsapp_phone:string|
 type Plan={id:string;month_start:string;status:"draft"|"published"|"archived"};
 type Meeting={id:string;plan_id:string;meeting_date:string;meeting_kind:MeetingKind;starts_at:string;ends_at:string;ends_next_day:boolean;cancelled:boolean};
 type Assignment={id:string;meeting_id:string;role_key:RoleKey;member_id:string|null;status:string;responded_at:string|null};
+type ChangeRequest={id:string;assignment_id:string;member_id:string;message:string;request_type:string;status:string;created_at:string};
 
 function MonthMeeting({meeting,assignments,members,busy,assign,saveTime}:{
   meeting:Meeting;assignments:Assignment[];members:Member[];busy:boolean;
@@ -46,6 +47,7 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
   const [tab,setTab]=useState<"planning"|"members"|"validations">("planning");
   const [members,setMembers]=useState<Member[]>([]),[plan,setPlan]=useState<Plan|null>(null);
   const [meetings,setMeetings]=useState<Meeting[]>([]),[assignments,setAssignments]=useState<Assignment[]>([]);
+  const [requests,setRequests]=useState<ChangeRequest[]>([]);
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
   const [error,setError]=useState(""),[notice,setNotice]=useState("");
   const [name,setName]=useState(""),[email,setEmail]=useState(""),[phone,setPhone]=useState(""),[country,setCountry]=useState("");
@@ -63,14 +65,21 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
       ]);
       if(mr.error)throw mr.error;if(pr.error)throw pr.error;
       setMembers((mr.data??[]) as Member[]);setPlan(pr.data as Plan|null);
-      if(!pr.data){setMeetings([]);setAssignments([]);return;}
+      if(!pr.data){setMeetings([]);setAssignments([]);setRequests([]);return;}
       const meet=await supabase.from("meetings").select("id,plan_id,meeting_date,meeting_kind,starts_at,ends_at,ends_next_day,cancelled")
         .eq("plan_id",pr.data.id).order("meeting_date");
       if(meet.error)throw meet.error;
       const items=(meet.data??[]) as Meeting[];setMeetings(items);
-      if(!items.length){setAssignments([]);return;}
+      if(!items.length){setAssignments([]);setRequests([]);return;}
       const ass=await supabase.from("assignments").select("id,meeting_id,role_key,member_id,status,responded_at").in("meeting_id",items.map(m=>m.id));
       if(ass.error)throw ass.error;setAssignments((ass.data??[]) as Assignment[]);
+      const assignmentIds=(ass.data??[]).map(a=>a.id);
+      if(!assignmentIds.length){setRequests([]);return;}
+      const changes=await supabase.from("change_requests")
+        .select("id,assignment_id,member_id,message,request_type,status,created_at")
+        .in("assignment_id",assignmentIds).order("created_at",{ascending:false});
+      if(changes.error)throw changes.error;
+      setRequests((changes.data??[]) as ChangeRequest[]);
     }catch(e){setError(e instanceof Error?e.message:"Erreur lors du chargement");}
     finally{setLoading(false);}
   },[monthKey,supabase]);
@@ -167,6 +176,28 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
       setError(e instanceof Error ? e.message : "La confirmation n'a pas pu être enregistrée.");
     } finally {setBusy(false);}
   }
+  async function generateInvitation(memberId:string):Promise<string>{
+    if(!plan)throw new Error("Aucun planning pour le mois sélectionné.");
+    const {data,error}=await supabase.functions.invoke("planning-invite-admin",{
+      body:{planId:plan.id,memberId}
+    });
+    if(error||typeof data?.link!=="string")throw new Error(data?.error||"Impossible de générer le lien. Réessaie.");
+    return data.link;
+  }
+  async function reviewRequest(requestId:string,decision:"approved"|"rejected"){
+    setBusy(true);setError("");setNotice("");
+    try{
+      const {data,error}=await supabase.rpc("review_planning_change",{
+        p_request_id:requestId,p_decision:decision
+      });
+      if(error||data!==true)throw new Error(error?.message||"La demande a déjà été traitée.");
+      await load();
+      setNotice(decision==="approved"
+        ?"Demande approuvée : modifie maintenant l'affectation depuis le planning."
+        :"Demande refusée : l'intervenant peut de nouveau confirmer.");
+    }catch(e){setError(e instanceof Error?e.message:"Impossible d'enregistrer la décision.");}
+    finally{setBusy(false);}
+  }
   async function logout(){setBusy(true);await supabase.auth.signOut();router.replace("/connexion");router.refresh();}
   function changeMonth(delta:number){
     const result=nextMonth(year,month,delta);setYear(result.year);setMonth(result.monthIndex);setNotice("");
@@ -243,7 +274,9 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
         </div></section>}
       {tab==="validations"&&<ShareCenter
         members={members} meetings={meetings} assignments={assignments}
-        monthLabel={title} busy={busy} onManualConfirmation={confirmAfterReply}
+        requests={requests} monthLabel={title} busy={busy}
+        onManualConfirmation={confirmAfterReply}
+        onGenerateInvitation={generateInvitation} onReviewRequest={reviewRequest}
       />}
       <footer>Première version · Accès réservé à l'administrateur · Projet Supabase indépendant</footer>
     </main>
