@@ -73,6 +73,20 @@ export default function ShareCenter({
     }
   }
 
+  async function copyOnlyLink(member: Member) {
+    const url = links[member.id];
+    if (!url) {
+      setNotice("Crée d'abord un lien personnel pour cet intervenant.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setNotice("Lien seul copié pour " + member.full_name + ". Colle-le dans une fenêtre privée pour tester.");
+    } catch {
+      setNotice("Copie bloquée par le navigateur : sélectionne l'adresse visible sous le nom pour la copier.");
+    }
+  }
+
   async function generateLink(member: Member) {
     setInvitationError("");setCreating(member.id);setNotice("");
     try{
@@ -101,7 +115,7 @@ export default function ShareCenter({
     <section className="card">
       <h2>Partager le planning — {monthLabel}</h2>
       <p className="muted">Prépare un message individuel pour chaque intervenant avec uniquement ses affectations. Tu choisis ensuite de l'envoyer par WhatsApp ou par e-mail.</p>
-      <p className="muted small">Crée un lien personnel sécurisé pour chaque intervenant. Il expire au bout de 14 jours. Le renouvellement d'un lien rend l'ancien inutilisable. WhatsApp et e-mail ouvrent ton application de messagerie : aucun envoi automatique.</p>
+      <p className="muted small">Crée un lien personnel sécurisé pour chaque intervenant. Il expire au bout de 14 jours. « Copier le lien » copie uniquement l'adresse à tester dans une navigation privée ; « Copier le message » récupère le texte complet. WhatsApp et e-mail n'envoient rien automatiquement.</p>
       {invitationError&&<p className="alert error" role="alert">{invitationError}</p>}
       {scheduled.length===0
         ? <p className="muted">Aucun intervenant programmé pour ce mois.</p>
@@ -112,11 +126,19 @@ export default function ShareCenter({
               <strong>{m.full_name}</strong>
               <small>{m.country ?? "Pays à compléter"} · {jobs.length} responsabilité(s)</small>
               <small>{jobs.map(j=>formatFrenchDate(j.meeting.meeting_date)+" — "+ROLE_LABELS[j.assignment.role_key]).join(" ; ")}</small>
+              {links[m.id] && <p className="share-link-display">
+                <strong>Lien personnel :</strong>{" "}
+                <a href={links[m.id]} target="_blank" rel="noopener noreferrer">{links[m.id]}</a>
+              </p>}
             </div>
             <div className="share-actions">
               <button type="button" className="primary" disabled={creating!==null||busy||Boolean(links[m.id])}
                 onClick={()=>void generateLink(m)}>{creating===m.id?"Création…":links[m.id]?"Lien créé":"Créer un lien"}</button>
-              <button type="button" className="secondary" onClick={()=>void copy(m)}>Copier</button>
+              {links[m.id] && <>
+                <button type="button" className="secondary" onClick={()=>void copyOnlyLink(m)}>Copier le lien</button>
+                <a className="share-link" href={links[m.id]} target="_blank" rel="noopener noreferrer">Tester le lien</a>
+              </>}
+              <button type="button" className="secondary" onClick={()=>void copy(m)}>Copier le message</button>
               {wa && <a className="share-link" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
               {mail && <a className="share-link" href={mail}>E-mail</a>}
             </div>
