@@ -44,3 +44,30 @@
 
 .meeting-focus{outline:3px solid #d6a84a;outline-offset:3px;box-shadow:0 10px 25px #b88b2b22}
 .replacement-notice{background:#fff8e8;color:#725116;border:1px solid #efd9a6;margin-top:18px}
+
+.response-monitor{display:grid;gap:15px;margin-top:18px}
+.monitor-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.monitor-heading h2{font-size:1.35rem;margin-bottom:7px;text-transform:capitalize}
+.monitor-heading p{margin-bottom:0}
+.monitor-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.monitor-stat{display:flex;flex-direction:column;gap:8px;align-items:flex-start;text-align:left;background:white;color:#55718b;border:1px solid #dce6f0;border-radius:13px;min-height:96px}
+.monitor-stat strong{font-size:1.5rem;color:#193e5c}
+.monitor-stat span{font-size:.78rem}
+.monitor-stat.active{background:#ecf5fc;border:2px solid #206ba8;color:#194f78}
+.monitor-toolbar{background:white;border:1px solid #e0e8f1;border-radius:13px;padding:16px;display:grid;gap:8px}
+.monitor-toolbar label{font-weight:700;font-size:.83rem}
+.monitor-toolbar input{font:inherit;border:1px solid #c9d7e5;border-radius:9px;padding:11px 13px;width:100%;max-width:540px}
+.monitor-person{padding-top:16px;padding-bottom:6px}
+.monitor-person-header h3{margin:2px 0;font-size:1.02rem}
+.monitor-person-header p{margin-bottom:12px}
+.monitor-task{display:flex;align-items:center;gap:12px;border-top:1px solid #e5ebf2;padding:12px 0}
+.monitor-task-content{flex:1;min-width:0}
+.monitor-task-content strong{display:block;font-size:.87rem;line-height:1.4}
+.monitor-task-content small{display:block;color:#6d8498;margin-top:4px}
+.monitor-status{border-radius:30px;background:#f0f3f8;color:#4c6275;padding:6px 10px;font-size:.72rem;font-weight:700;max-width:205px;text-align:center}
+.monitor-status.status-confirmed{background:#e9f7ef;color:#236b43}
+.monitor-status.status-pending{background:#fff6e4;color:#7e5a11}
+.monitor-status.status-change_requested{background:#fdf0e9;color:#995029}
+.monitor-task button{font-size:.75rem;white-space:nowrap}
+@media(max-width:900px){.monitor-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.monitor-heading{flex-direction:column}.monitor-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-task{flex-wrap:wrap}.monitor-task button{width:100%}.monitor-status{max-width:none}}
