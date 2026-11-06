@@ -71,3 +71,14 @@
 .monitor-task button{font-size:.75rem;white-space:nowrap}
 @media(max-width:900px){.monitor-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.monitor-heading{flex-direction:column}.monitor-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-task{flex-wrap:wrap}.monitor-task button{width:100%}.monitor-status{max-width:none}}
+
+.monitor-person-header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.monitor-person-header button{font-size:.78rem;white-space:nowrap}
+.reminder-preview{padding:17px;background:#f5f9fd;border:1px solid #dce8f2;border-radius:12px;margin:5px 0 15px}
+.reminder-preview>strong{display:block;font-size:.94rem;margin-bottom:7px}
+.reminder-preview p{margin:8px 0}
+.reminder-message{font:inherit;font-size:.85rem;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;background:white;border:1px solid #e3eaf2;border-radius:9px;padding:16px;margin:14px 0}
+.reminder-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.reminder-whatsapp{display:inline-flex;background:#e2f4e9;border:1px solid #a8dfba;border-radius:9px;color:#146e3c;text-decoration:none;padding:11px 15px;font-size:.83rem;font-weight:700}
+.reminder-whatsapp:hover{background:#c9ebd7}
+@media(max-width:600px){.monitor-person-header{flex-wrap:wrap}.monitor-person-header>button{width:100%}}
