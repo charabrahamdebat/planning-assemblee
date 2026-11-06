@@ -22,17 +22,23 @@ type Props = {
   onManualConfirmation: (assignment: Assignment) => Promise<void>;
   onGenerateInvitation: (memberId: string) => Promise<string>;
   onReviewRequest: (requestId:string,decision:"approved"|"rejected") => Promise<void>;
+  onGoToMeeting: (meetingId:string) => void;
 };
 
 export default function ShareCenter({
   members, meetings, assignments, requests, monthLabel, busy,
-  onManualConfirmation, onGenerateInvitation, onReviewRequest
+  onManualConfirmation, onGenerateInvitation, onReviewRequest, onGoToMeeting
 }: Props) {
   const [notice, setNotice] = useState("");
   const [links,setLinks]=useState<Record<string,string>>({});
   const [creating,setCreating]=useState<string|null>(null);
   const [invitationError,setInvitationError]=useState("");
   const pendingRequests=requests.filter(r=>r.status==="pending");
+  const approvedAwaitingReplacement=requests.filter(r=>
+    r.status==="approved" &&
+    requests.find(x=>x.assignment_id===r.assignment_id)?.id===r.id &&
+    assignments.some(a=>a.id===r.assignment_id&&a.status==="change_requested")
+  );
   const meetingById = new Map(meetings.map(m => [m.id, m]));
   const scheduled = members.filter(m => assignments.some(a => a.member_id === m.id));
 
@@ -167,6 +173,25 @@ export default function ShareCenter({
           </div>;
         })
       }
+    </section>
+    <section className="card">
+      <h2>Modifications approuvées à finaliser</h2>
+      {!approvedAwaitingReplacement.length?<p className="muted">Aucune réattribution à finaliser.</p>:
+        approvedAwaitingReplacement.map(request=>{
+          const a=assignments.find(item=>item.id===request.assignment_id);
+          const meeting=a?meetingById.get(a.meeting_id):null;
+          const member=members.find(m=>m.id===request.member_id);
+          return <div className="share-person" key={request.id}>
+            <div className="share-person-info">
+              <strong>{member?.full_name||"Intervenant"} — demande approuvée</strong>
+              <small>{meeting?formatFrenchDate(meeting.meeting_date):"Réunion"} · {a?ROLE_LABELS[a.role_key]:"Responsabilité"}</small>
+              <p>{request.message}</p>
+              <small>Choisis un autre intervenant dans le groupe concerné, ou laisse la fonction non attribuée.</small>
+            </div>
+            {meeting&&<button className="primary" disabled={busy} type="button"
+              onClick={()=>onGoToMeeting(meeting.id)}>Réattribuer dans le planning</button>}
+          </div>;
+        })}
     </section>
     <section className="card">
       <h2>Demandes de modification</h2>
