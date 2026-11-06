@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import ShareCenter from "@/components/ShareCenter";
@@ -11,16 +11,19 @@ type Meeting={id:string;plan_id:string;meeting_date:string;meeting_kind:MeetingK
 type Assignment={id:string;meeting_id:string;role_key:RoleKey;member_id:string|null;status:string;responded_at:string|null};
 type ChangeRequest={id:string;assignment_id:string;member_id:string;message:string;request_type:string;status:string;created_at:string};
 
-function MonthMeeting({meeting,assignments,members,busy,assign,saveTime}:{
-  meeting:Meeting;assignments:Assignment[];members:Member[];busy:boolean;
+function MonthMeeting({meeting,assignments,members,busy,assign,saveTime,focused,approvedRoles}:{
+
+  meeting:Meeting;assignments:Assignment[];members:Member[];busy:boolean;focused:boolean;approvedRoles:Set<string>;
   assign:(a:Assignment,id:string)=>Promise<void>;
   saveTime:(m:Meeting,start:string,end:string)=>Promise<void>;
 }){
+  const cardRef=useRef<HTMLElement>(null);
+  useEffect(()=>{if(focused)cardRef.current?.scrollIntoView({behavior:"smooth",block:"center"});},[focused]);
   const [start,setStart]=useState(meeting.starts_at.slice(0,5));
   const [end,setEnd]=useState(meeting.ends_at.slice(0,5));
   useEffect(()=>{setStart(meeting.starts_at.slice(0,5));setEnd(meeting.ends_at.slice(0,5));},[meeting.starts_at,meeting.ends_at]);
   const friday=meeting.meeting_kind==="friday";
-  return <article className="card meeting">
+  return <article ref={cardRef} className={focused?"card meeting meeting-focus":"card meeting"}>
     <div className="card-header"><div><p className="eyebrow">{friday?"Réunion de prière":"Culte du dimanche"}</p><h3>{formatFrenchDate(meeting.meeting_date)}</h3></div>
       <span className="chip">{formatTime(meeting.starts_at)} – {formatTime(meeting.ends_at)}{meeting.ends_next_day?" (samedi)":""}</span></div>
     <div className="role-list">{ROLE_BY_KIND[meeting.meeting_kind].map(role=>{
@@ -30,7 +33,7 @@ function MonthMeeting({meeting,assignments,members,busy,assign,saveTime}:{
           <option value="">Non attribué</option>
           {members.filter(m=>(m.active&&m.role_keys.includes(role))||m.id===a?.member_id).map(m=><option key={m.id} value={m.id}>{m.full_name}{m.country?` — ${m.country}`:""}{m.active&&m.role_keys.includes(role)?"":" (hors groupe / inactif)"}</option>)}
         </select>
-        <small>{a?.status==="confirmed"?"Confirmé":a?.status==="pending"?"À confirmer":a?.status==="change_requested"?"Modification demandée":"À attribuer"}</small>
+        <small>{a?.status==="confirmed"?"Confirmé":a?.status==="pending"?"À confirmer":a?.status==="change_requested"?(approvedRoles.has(a.id)?"À réattribuer":"Modification demandée"):"À attribuer"}</small>
       </div></label>;
     })}</div>
     <div className="hours"><label>Début<input type="time" value={start} onChange={e=>setStart(e.target.value)} disabled={busy}/></label>
@@ -48,6 +51,7 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
   const [members,setMembers]=useState<Member[]>([]),[plan,setPlan]=useState<Plan|null>(null);
   const [meetings,setMeetings]=useState<Meeting[]>([]),[assignments,setAssignments]=useState<Assignment[]>([]);
   const [requests,setRequests]=useState<ChangeRequest[]>([]);
+  const [focusedMeetingId,setFocusedMeetingId]=useState<string|null>(null);
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
   const [error,setError]=useState(""),[notice,setNotice]=useState("");
   const [name,setName]=useState(""),[email,setEmail]=useState(""),[phone,setPhone]=useState(""),[country,setCountry]=useState("");
@@ -155,7 +159,7 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
   async function assign(a:Assignment,id:string){
     setBusy(true);setError("");setNotice("");
     const r=await supabase.from("assignments").update({member_id:id||null,status:id?"pending":"unassigned",responded_at:null}).eq("id",a.id);
-    if(r.error)setError(r.error.message);else setNotice("Affectation enregistrée. Le lien d'invitation sera ajouté ultérieurement.");
+    if(r.error)setError(r.error.message);else setNotice(id?"Affectation enregistrée. Crée maintenant le lien personnel du nouvel intervenant dans Partage et validations.":"Responsabilité libérée. Tu peux choisir un nouvel intervenant plus tard.");
     await load();setBusy(false);
   }
   async function saveTime(m:Meeting,start:string,end:string){
@@ -202,6 +206,8 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
   function changeMonth(delta:number){
     const result=nextMonth(year,month,delta);setYear(result.year);setMonth(result.monthIndex);setNotice("");
   }
+  const approvedIds=new Set(requests.filter(r=>r.status==="approved" && requests.find(x=>x.assignment_id===r.assignment_id)?.id===r.id).map(r=>r.assignment_id));
+  const replacementCount=assignments.filter(a=>a.status==="change_requested"&&approvedIds.has(a.id)).length;
   const confirmed=assignments.filter(x=>x.status==="confirmed").length;
   const pending=assignments.filter(x=>x.status==="pending").length;
   const empty=assignments.filter(x=>x.status==="unassigned").length;
@@ -223,8 +229,8 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
         <button className="primary" disabled={loading||busy} onClick={()=>void generateMonth()}>{plan?"Vérifier / compléter le mois":"Générer le mois"}</button></section>
         <section className="stats"><div><b>{meetings.length}</b>Réunions</div><div><b>{assignments.length}</b>Responsabilités</div><div><b>{pending}</b>À confirmer</div><div><b>{confirmed}</b>Confirmées</div></section>
         {loading?<p>Chargement du planning…</p>:!plan?<section className="card empty"><h2>Aucun planning pour ce mois</h2><p>Utilise « Générer le mois » pour créer toutes les réunions et leurs quatre fonctions.</p></section>:
-        <><p className="muted">{empty} fonction(s) sans intervenant. Une personne peut assurer plusieurs fonctions.</p>
-        <section className="meetings">{meetings.map(m=><MonthMeeting key={m.id} meeting={m} members={members} assignments={assignments.filter(a=>a.meeting_id===m.id)} busy={busy} assign={assign} saveTime={saveTime}/>)}</section></>}
+        <>{replacementCount>0&&<p className="alert replacement-notice">{replacementCount} responsabilité(s) approuvée(s) attendent une réattribution. Elles sont signalées « À réattribuer ».</p>}<p className="muted">{empty} fonction(s) sans intervenant. Une personne peut assurer plusieurs fonctions.</p>
+        <section className="meetings">{meetings.map(m=><MonthMeeting key={m.id} meeting={m} members={members} assignments={assignments.filter(a=>a.meeting_id===m.id)} busy={busy} assign={assign} saveTime={saveTime} focused={focusedMeetingId===m.id} approvedRoles={approvedIds}/>)}</section></>}
       </>}
       {tab==="members"&&<section className="members"><div className="card"><h2>Ajouter un intervenant</h2>
         <form className="stack" onSubmit={e=>void addMember(e)}>
@@ -277,6 +283,7 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
         requests={requests} monthLabel={title} busy={busy}
         onManualConfirmation={confirmAfterReply}
         onGenerateInvitation={generateInvitation} onReviewRequest={reviewRequest}
+        onGoToMeeting={(meetingId)=>{setFocusedMeetingId(meetingId);setTab("planning");}}
       />}
       <footer>Première version · Accès réservé à l'administrateur · Projet Supabase indépendant</footer>
     </main>
