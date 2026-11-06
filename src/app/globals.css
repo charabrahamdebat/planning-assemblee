@@ -41,3 +41,6 @@
 
 .share-link-display{font-size:.78rem;line-height:1.55;margin:9px 0 0;padding:10px;border:1px solid #d9e7f2;background:#f7fbff;border-radius:9px;overflow-wrap:anywhere;word-break:break-word}
 .share-link-display a{color:#195985;text-decoration:underline;text-underline-offset:2px}
+
+.meeting-focus{outline:3px solid #d6a84a;outline-offset:3px;box-shadow:0 10px 25px #b88b2b22}
+.replacement-notice{background:#fff8e8;color:#725116;border:1px solid #efd9a6;margin-top:18px}
