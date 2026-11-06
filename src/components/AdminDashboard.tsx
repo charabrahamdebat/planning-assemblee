@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import ShareCenter from "@/components/ShareCenter";
+import ResponseOverview from "@/components/ResponseOverview";
 import { generateMeetings, monthStart, nextMonth, formatFrenchDate, formatTime, ROLE_BY_KIND, ROLE_LABELS, type RoleKey, type MeetingKind } from "@/lib/planning";
 
 type Member={id:string;full_name:string;email:string|null;whatsapp_phone:string|null;country:string|null;active:boolean;role_keys:RoleKey[]};
@@ -47,7 +48,7 @@ function MonthMeeting({meeting,assignments,members,busy,assign,saveTime,focused,
 export default function AdminDashboard({userEmail}:{userEmail:string}){
   const router=useRouter(),supabase=useMemo(()=>createClient(),[]);
   const [year,setYear]=useState(new Date().getFullYear()),[month,setMonth]=useState(new Date().getMonth());
-  const [tab,setTab]=useState<"planning"|"members"|"validations">("planning");
+  const [tab,setTab]=useState<"planning"|"members"|"validations"|"suivi">("planning");
   const [members,setMembers]=useState<Member[]>([]),[plan,setPlan]=useState<Plan|null>(null);
   const [meetings,setMeetings]=useState<Meeting[]>([]),[assignments,setAssignments]=useState<Assignment[]>([]);
   const [requests,setRequests]=useState<ChangeRequest[]>([]);
@@ -219,9 +220,10 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
         <button className={tab==="planning"?"selected":""} onClick={()=>setTab("planning")}>▦ Planning mensuel</button>
         <button className={tab==="members"?"selected":""} onClick={()=>setTab("members")}>♙ Intervenants</button>
         <button className={tab==="validations"?"selected":""} onClick={()=>setTab("validations")}>✓ Partage et validations</button>
+        <button className={tab==="suivi"?"selected":""} onClick={()=>{setTab("suivi");void load();}}>▤ Suivi des réponses</button>
       </nav><div className="bottom"><small>{userEmail}</small><button className="secondary" disabled={busy} onClick={()=>void logout()}>Déconnexion</button></div>
     </aside>
-    <main className="main"><header><p className="eyebrow">Planning Assemblée — FOI VICTORIEUSE</p><h1>{tab==="planning"?"Planning mensuel":tab==="members"?"Intervenants":"Validations"}</h1>
+    <main className="main"><header><p className="eyebrow">Planning Assemblée — FOI VICTORIEUSE</p><h1>{tab==="planning"?"Planning mensuel":tab==="members"?"Intervenants":tab==="suivi"?"Suivi des réponses":"Validations"}</h1>
       <p className="muted">Vendredi 22h–01h (samedi) · Dimanche 16h–18h</p></header>
       {error&&<p className="alert error" role="alert">{error}</p>}{notice&&<p className="alert success" role="status">{notice}</p>}
       {tab==="planning"&&<><section className="month-head">
@@ -231,6 +233,16 @@ export default function AdminDashboard({userEmail}:{userEmail:string}){
         {loading?<p>Chargement du planning…</p>:!plan?<section className="card empty"><h2>Aucun planning pour ce mois</h2><p>Utilise « Générer le mois » pour créer toutes les réunions et leurs quatre fonctions.</p></section>:
         <>{replacementCount>0&&<p className="alert replacement-notice">{replacementCount} responsabilité(s) approuvée(s) attendent une réattribution. Elles sont signalées « À réattribuer ».</p>}<p className="muted">{empty} fonction(s) sans intervenant. Une personne peut assurer plusieurs fonctions.</p>
         <section className="meetings">{meetings.map(m=><MonthMeeting key={m.id} meeting={m} members={members} assignments={assignments.filter(a=>a.meeting_id===m.id)} busy={busy} assign={assign} saveTime={saveTime} focused={focusedMeetingId===m.id} approvedRoles={approvedIds}/>)}</section></>}
+      </>}
+      {tab==="suivi"&&<>
+        <section className="month-head">
+          <div className="month-nav"><button className="secondary" onClick={()=>changeMonth(-1)}>‹</button>
+            <h2>{title}</h2>
+            <button className="secondary" onClick={()=>changeMonth(1)}>›</button></div>
+        </section>
+        <ResponseOverview members={members} meetings={meetings} assignments={assignments}
+          requests={requests} monthLabel={title} loading={loading} onRefresh={load}
+          onGoToMeeting={(meetingId)=>{setFocusedMeetingId(meetingId);setTab("planning");}}/>
       </>}
       {tab==="members"&&<section className="members"><div className="card"><h2>Ajouter un intervenant</h2>
         <form className="stack" onSubmit={e=>void addMember(e)}>
