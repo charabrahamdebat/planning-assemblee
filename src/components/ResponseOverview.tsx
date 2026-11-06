@@ -2,7 +2,7 @@
 import {useMemo,useState} from "react";
 import {formatFrenchDate,ROLE_LABELS,type RoleKey} from "@/lib/planning";
 
-type Member={id:string;full_name:string;country:string|null};
+type Member={id:string;full_name:string;country:string|null;whatsapp_phone:string|null};
 type Meeting={id:string;meeting_date:string;starts_at:string;ends_at:string;ends_next_day:boolean};
 type Assignment={id:string;meeting_id:string;member_id:string|null;role_key:RoleKey;status:string};
 type ChangeRequest={id:string;assignment_id:string;status:string;created_at:string};
@@ -20,6 +20,8 @@ const filters:{key:Filter;label:string}[]=[
 export default function ResponseOverview({members,meetings,assignments,requests,monthLabel,loading,onRefresh,onGoToMeeting}:Props){
  const [filter,setFilter]=useState<Filter>("pending");
  const [search,setSearch]=useState("");
+ const [reminderFor,setReminderFor]=useState<string|null>(null);
+ const [copyFeedback,setCopyFeedback]=useState("");
  const byMeeting=useMemo(()=>new Map(meetings.map(m=>[m.id,m])),[meetings]);
  const byMember=useMemo(()=>new Map(members.map(m=>[m.id,m])),[members]);
  const counts={
@@ -53,6 +55,48 @@ export default function ResponseOverview({members,meetings,assignments,requests,
   (byMember.get(idA)?.full_name||"ZZZ - Non attribué").localeCompare(byMember.get(idB)?.full_name||"ZZZ - Non attribué","fr")
  );
  const uniquePeople=new Set(matches.map(a=>a.member_id).filter(Boolean)).size;
+ function pendingFor(memberId:string){
+  return assignments.filter(a=>a.member_id===memberId&&a.status==="pending"&&byMeeting.has(a.meeting_id))
+   .sort((a,b)=>{
+    const x=byMeeting.get(a.meeting_id)?.meeting_date||"";
+    const y=byMeeting.get(b.meeting_id)?.meeting_date||"";
+    return x.localeCompare(y)||ROLE_LABELS[a.role_key].localeCompare(ROLE_LABELS[b.role_key],"fr");
+   });
+ }
+ function reminderMessage(member:Member){
+  const jobs=pendingFor(member.id);
+  if(!jobs.length)return "";
+  const lines=jobs.map(a=>{
+    const m=byMeeting.get(a.meeting_id)!;
+    return "• "+formatFrenchDate(m.meeting_date)+" — "+ROLE_LABELS[a.role_key]+
+     " ("+m.starts_at.slice(0,5)+"–"+m.ends_at.slice(0,5)+
+     (m.ends_next_day?", fin le lendemain":"")+")";
+  });
+  return [
+   "Bonjour "+member.full_name+",",
+   "",
+   "Que la grâce et la paix du Seigneur soient avec toi !",
+   "",
+   "Petit rappel concernant tes responsabilités encore à confirmer pour "+monthLabel+" (heure de France) :",
+   ...lines,
+   "",
+   "Merci de confirmer chacune de ces responsabilités grâce à ton lien personnel si tu l'as reçu, ou en me répondant directement.",
+   "Si tu souhaites une modification, fais-moi le savoir."
+  ].join("\n");
+ }
+ function reminderWhatsAppUrl(member:Member){
+  const digits=(member.whatsapp_phone||"").replace(/\D/g,"");
+  if(!/^\d{8,15}$/.test(digits))return null;
+  return "https://wa.me/"+digits+"?text="+encodeURIComponent(reminderMessage(member));
+ }
+ async function copyReminder(member:Member){
+  try{
+   await navigator.clipboard.writeText(reminderMessage(member));
+   setCopyFeedback("Relance copiée pour "+member.full_name+".");
+  }catch{
+   setCopyFeedback("La copie est bloquée. Sélectionne le message ci-dessous pour le copier.");
+  }
+ }
  function statusLabel(a:Assignment){
   if(a.status==="confirmed")return "Confirmé";
   if(a.status==="pending")return "Sans réponse";
@@ -93,7 +137,27 @@ export default function ResponseOverview({members,meetings,assignments,requests,
        <div><h3>{person?.full_name||"Responsabilités non attribuées"}</h3>
          <p className="muted small">{person?.country||"Aucun pays"} · {items.length} responsabilité(s)</p>
        </div>
+       {person && pendingFor(person.id).length>0 && (filter==="pending"||filter==="all") &&
+        <button type="button" className="secondary" aria-expanded={reminderFor===person.id}
+         onClick={()=>{setReminderFor(reminderFor===person.id?null:person.id);setCopyFeedback("");}}>
+          {reminderFor===person.id?"Fermer la relance":"Relancer sur WhatsApp"}
+        </button>}
       </div>
+      {person && reminderFor===person.id && pendingFor(person.id).length>0 &&
+       (filter==="pending"||filter==="all") && <div className="reminder-preview">
+         <strong>Relance pour {person.full_name}</strong>
+         <p className="muted small">{pendingFor(person.id).length} responsabilité(s) encore sans réponse ce mois. Les confirmations déjà reçues ne sont pas incluses.</p>
+         <pre className="reminder-message">{reminderMessage(person)}</pre>
+         <div className="reminder-actions">
+           <button type="button" className="secondary" onClick={()=>void copyReminder(person)}>Copier la relance</button>
+           {reminderWhatsAppUrl(person)?
+             <a className="reminder-whatsapp" href={reminderWhatsAppUrl(person)!}
+               target="_blank" rel="noopener noreferrer">Ouvrir WhatsApp</a>:
+             <span className="muted small">Numéro WhatsApp manquant ou invalide : copie le message pour l'envoyer manuellement.</span>}
+         </div>
+         {copyFeedback&&<p className="muted small" role="status">{copyFeedback}</p>}
+         <p className="muted small">WhatsApp s'ouvre avec le texte prérempli : vérifie-le avant d'appuyer sur Envoyer. Aucun message n'est transmis automatiquement.</p>
+       </div>
       {items.map(a=>{
        const m=byMeeting.get(a.meeting_id);if(!m)return null;
        return <div className="monitor-task" key={a.id}>
