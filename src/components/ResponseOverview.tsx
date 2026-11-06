@@ -157,7 +157,7 @@ export default function ResponseOverview({members,meetings,assignments,requests,
          </div>
          {copyFeedback&&<p className="muted small" role="status">{copyFeedback}</p>}
          <p className="muted small">WhatsApp s'ouvre avec le texte prérempli : vérifie-le avant d'appuyer sur Envoyer. Aucun message n'est transmis automatiquement.</p>
-       </div>
+       </div>}
       {items.map(a=>{
        const m=byMeeting.get(a.meeting_id);if(!m)return null;
        return <div className="monitor-task" key={a.id}>
